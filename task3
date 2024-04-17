@@ -1,0 +1,46 @@
+import tensorflow as tf
+from transformers import BertTokenizer, TFBertModel
+from tensorflow.keras.applications import ResNet50, resnet50
+from tensorflow.keras.preprocessing import image
+import numpy as np
+import re
+
+# Load pre-trained ResNet50 model
+resnet_model = ResNet50(weights='imagenet', include_top=False, pooling='avg', input_shape=(224, 224, 3))
+
+# Load pre-trained BERT model and tokenizer
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+bert_model = TFBertModel.from_pretrained('bert-base-uncased')
+
+# Function to preprocess the image
+def preprocess_image(img_path):
+    img = image.load_img(img_path, target_size=(224, 224))
+    img_array = image.img_to_array(img)
+    img_array = resnet50.preprocess_input(img_array)
+    img_array = np.expand_dims(img_array, axis=0)
+    return img_array
+
+# Function to generate caption for the image
+def generate_caption(img_path, max_length=128):
+    img_array = preprocess_image(img_path)
+    img_features = resnet_model.predict(img_array)
+    
+    # Tokenize and encode the input sequence
+    input_text = "a photo of a"
+    input_ids = tokenizer.encode(input_text, add_special_tokens=True, max_length=max_length, truncation=True, return_tensors="tf")
+    
+    # Generate captions using the pre-trained BERT model
+    outputs = bert_model.generate(input_ids, max_length=max_length, num_beams=5, early_stopping=True)
+    
+    # Decode and clean up the generated captions
+    captions = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    captions = re.sub(r'\[CLS\]', '', captions)
+    captions = re.sub(r'\[SEP\].*', '', captions)
+    captions = captions.strip()
+    
+    return captions
+
+# Example usage
+img_path = 'example_image.jpg'
+caption = generate_caption(img_path)
+print("Generated Caption:", caption)
